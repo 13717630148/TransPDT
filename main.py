@@ -242,9 +242,9 @@ class MLP_final_aux(nn.Module):
 """LSTM-Attention-preferences"""    
     
 from torch.nn import functional as F
-class DeepRouteRnnDecoder(nn.Module):
+class DRRnnDecoder(nn.Module):
     def __init__(self, input_size, hidden_size, use_tanh=False, tanh_exploration=10, decode_type="greedy", device="cuda"):
-        super(DeepRouteRnnDecoder, self).__init__()
+        super(DRRnnDecoder, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.use_tanh = use_tanh
@@ -317,12 +317,12 @@ class DeepRouteRnnDecoder(nn.Module):
         return max_idx
 
 
-class DeepRoute(nn.Module):
+class DR(nn.Module):
     def __init__(self, hidden_size, device="cuda"):
-        super(DeepRoute, self).__init__()
+        super(DR, self).__init__()
         self.hidden_size=hidden_size
         self.device = device
-        self.decoder = DeepRouteRnnDecoder(self.hidden_size, self.hidden_size, device=self.device)
+        self.decoder = DRRnnDecoder(self.hidden_size, self.hidden_size, device=self.device)
         std = 1. / math.sqrt(self.hidden_size)
         self.decoder_initial = nn.Parameter(torch.randn(self.hidden_size)).to(self.device) 
         self.linear1=nn.Linear(self.hidden_size*2,self.hidden_size)
@@ -441,7 +441,7 @@ todel_model = MachineTranslationTransformer(
     nd_dim=128,
     hidden_nd_dim=16
 ).to(device)
-deeproute_model=DeepRoute(hidden_size=64*4).to(device)
+DR_model=DR(hidden_size=64*4).to(device)
 memory_model=MemoryNetwork(
                         input_size=64*2,
                         output_size=64*4,
@@ -464,7 +464,7 @@ testloader = DataLoader(
 
 learning_rate=0.001    
 optimizer = torch.optim.Adam(list(history_model.parameters())+list(todel_model.parameters())+\
-                             list(deeproute_model.parameters())+list(memory_model.parameters())
+                             list(DR_model.parameters())+list(memory_model.parameters())
                              , learning_rate, 
                             )
 
@@ -507,7 +507,7 @@ for seed_id in seeds:
         epoch_val_mape_list=[]    
         history_model.train()
         todel_model.train()
-        deeproute_model.train()
+        DR_model.train()
         memory_model.train()
         for i, data in (enumerate(trainloader)):
             optimizer.zero_grad()
@@ -573,7 +573,7 @@ for seed_id in seeds:
             fus=torch.cat((his_ac,todel),dim=-1)
             fus=memory_model(fus)
             block_id=leibie2[:,:,-2]
-            ptr_probs, y_pred=deeproute_model(fus,block_id)
+            ptr_probs, y_pred=DR_model(fus,block_id)
             y_pred=y_pred.squeeze().reshape(-1)
             mask=leibie2[:,:,-1].reshape(-1)
             batch_size,seq_len,_=ptr_probs.size()
@@ -602,7 +602,7 @@ for seed_id in seeds:
         with torch.no_grad():        
             history_model.eval()
             todel_model.eval()
-            deeproute_model.eval()
+            DR_model.eval()
             memory_model.eval()
             for i, data in (enumerate(testloader)):
                 #历史
@@ -666,7 +666,7 @@ for seed_id in seeds:
                 fus=torch.cat((his_ac,todel),dim=-1)
                 fus=memory_model(fus)
                 block_id=leibie2[:,:,-2]
-                ptr_probs, y_pred=deeproute_model(fus,block_id)           
+                ptr_probs, y_pred=DR_model(fus,block_id)           
                 y_pred=y_pred.squeeze().reshape(-1)#
                 batch_size,seq_len,_=ptr_probs.size()
                 ptr_probs = ptr_probs.reshape(batch_size * seq_len, seq_len)
